@@ -1,121 +1,110 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useEffect, useState } from 'react'
+import { eventTypes } from './data/eventTypes'
+
+import EventCalendar from './components/EventCalendar'
+import Legend from './components/Legend'
+import { gameColors } from './data/gameColors'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [selectedGames, setSelectedGames] = useState(() => {
+    const saved = localStorage.getItem('selectedGames')
+
+    if (saved) {
+      return JSON.parse(saved)
+    }
+
+    return gameColors.map((game) => game.name)
+  })
+
+  const [selectedTypes, setSelectedTypes] = useState(() => {
+    const saved = localStorage.getItem('selectedTypes')
+
+    if (saved) {
+      return JSON.parse(saved)
+    }
+
+    return eventTypes
+  })
+
+  useEffect(() => {
+    localStorage.setItem('selectedGames', JSON.stringify(selectedGames))
+  }, [selectedGames])
+
+  useEffect(() => {
+    localStorage.setItem('selectedTypes', JSON.stringify(selectedTypes))
+  }, [selectedTypes])
+
+  const toggleGame = (gameName) => {
+    if (selectedGames.includes(gameName)) {
+      setSelectedGames(selectedGames.filter((name) => name !== gameName))
+    } else {
+      setSelectedGames([...selectedGames, gameName])
+    }
+  }
+
+  const toggleType = (type) => {
+    if (selectedTypes.includes(type)) {
+      setSelectedTypes(selectedTypes.filter((item) => item !== type))
+    } else {
+      setSelectedTypes([...selectedTypes, type])
+    }
+  }
+
+  const [games, setGames] = useState(() => {
+  const saved = localStorage.getItem('games')
+
+  if (saved) {
+    return JSON.parse(saved)
+  }
+
+  return gameColors
+  })
+
+  useEffect(() => {
+    localStorage.setItem('games', JSON.stringify(games))
+  }, [games])
+
+  const changeGameColor = (gameName, color) => {
+    setGames(
+      games.map((game) =>
+        game.name === gameName
+          ? { ...game, color }
+          : game
+      )
+    )
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      <header className="app-header">
+        <h1>서브컬쳐 이벤트 캘린더</h1>
+        <p>게임별 이벤트 일정을 한눈에 확인하세요.</p>
+      </header>
 
-      <div className="ticks"></div>
+      <main className="app-main">
+        <section className="legend-section">
+          <h2>이벤트 범례</h2>
+          <Legend
+            games={games}
+            selectedGames={selectedGames}
+            selectedTypes={selectedTypes}
+            onToggleGame={toggleGame}
+            onToggleType={toggleType}
+            onChangeGameColor={changeGameColor}
+          />
+        </section>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <section className="calendar-section">
+          <h2>이벤트 캘린더</h2>
+          <EventCalendar
+            selectedGames={selectedGames}
+            selectedTypes={selectedTypes}
+            games={games}
+          />
+        </section>
+      </main>
+    </div>
   )
 }
 
