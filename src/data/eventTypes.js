@@ -3,4 +3,5 @@ export const eventTypes = [
   '이벤트',
   '업데이트',
   '점검',
+  '오프라인',
 ]

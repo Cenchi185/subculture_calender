@@ -1,4 +1,4 @@
-function ToggleSwitch({ checked, onChange, color }) {
+function ToggleSwitch({ checked, onChange, color, label }) {
   return (
     <label
       className="toggle-switch"
@@ -8,6 +8,7 @@ function ToggleSwitch({ checked, onChange, color }) {
         type="checkbox"
         checked={checked}
         onChange={onChange}
+        aria-label={label}
       />
       <span className="toggle-slider"></span>
     </label>

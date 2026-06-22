@@ -1,12 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { eventTypes } from './data/eventTypes'
 
 import EventCalendar from './components/EventCalendar'
+import EventSearch from './components/EventSearch'
+import GameDrawer from './components/GameDrawer'
 import Legend from './components/Legend'
+import ActiveGameLegend from './components/ActiveGameLegend'
+import ThemeButton from './components/ThemeButton'
 import { gameColors } from './data/gameColors'
+import { events } from './data/events'
 import './App.css'
 
 function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
+  const [focusedEvent, setFocusedEvent] = useState(null)
+  const [isGameDrawerOpen, setIsGameDrawerOpen] = useState(false)
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
   const [selectedGames, setSelectedGames] = useState(() => {
     const saved = localStorage.getItem('selectedGames')
 
@@ -66,8 +79,8 @@ function App() {
   }, [games])
 
   const changeGameColor = (gameName, color) => {
-    setGames(
-      games.map((game) =>
+    setGames((currentGames) =>
+      currentGames.map((game) =>
         game.name === gameName
           ? { ...game, color }
           : game
@@ -75,32 +88,80 @@ function App() {
     )
   }
 
+  const focusSearchedEvent = (event) => {
+    setSelectedGames((currentGames) =>
+      currentGames.includes(event.game)
+        ? currentGames
+        : [...currentGames, event.game]
+    )
+    setSelectedTypes((currentTypes) =>
+      currentTypes.includes(event.type)
+        ? currentTypes
+        : [...currentTypes, event.type]
+    )
+    setFocusedEvent({
+      id: event.id,
+      start: event.start,
+      requestId: Date.now(),
+    })
+  }
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>서브컬쳐 이벤트 캘린더</h1>
-        <p>게임별 이벤트 일정을 한눈에 확인하세요.</p>
+        <div className="app-header-content">
+          <div className="app-header-leading">
+            <button
+              type="button"
+              className="hamburger-button"
+              aria-label="게임 목록 열기"
+              aria-expanded={isGameDrawerOpen}
+              onClick={() => setIsGameDrawerOpen(true)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+
+            <div className="app-title">
+              <h1>서브컬쳐 이벤트 캘린더</h1>
+              <p>게임별 이벤트 일정을 한눈에 확인하세요.</p>
+            </div>
+          </div>
+
+          <div className="app-header-actions">
+            <EventSearch events={events} onSelect={focusSearchedEvent} />
+            <ThemeButton
+              theme={theme}
+              onToggle={() => setTheme((current) =>
+                current === 'dark' ? 'light' : 'dark'
+              )}
+            />
+          </div>
+        </div>
       </header>
 
-      <main className="app-main">
-        <section className="legend-section">
-          <h2>이벤트 범례</h2>
-          <Legend
-            games={games}
-            selectedGames={selectedGames}
-            selectedTypes={selectedTypes}
-            onToggleGame={toggleGame}
-            onToggleType={toggleType}
-            onChangeGameColor={changeGameColor}
-          />
-        </section>
+      <GameDrawer
+        isOpen={isGameDrawerOpen}
+        games={games}
+        selectedGames={selectedGames}
+        onToggleGame={toggleGame}
+        onChangeGameColor={changeGameColor}
+        onClose={() => setIsGameDrawerOpen(false)}
+      />
 
+      <main className="app-main">
         <section className="calendar-section">
-          <h2>이벤트 캘린더</h2>
+          <Legend
+            selectedTypes={selectedTypes}
+            onToggleType={toggleType}
+          />
+          <ActiveGameLegend games={games} selectedGames={selectedGames} />
           <EventCalendar
             selectedGames={selectedGames}
             selectedTypes={selectedTypes}
             games={games}
+            focusedEvent={focusedEvent}
           />
         </section>
       </main>
