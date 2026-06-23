@@ -1,47 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import FullCalendar from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import { events } from '../data/events'
+import { STORAGE_KEYS } from '../constants/storageKeys'
+import {
+  STRING_STORAGE_OPTIONS,
+  useLocalStorageState,
+} from '../hooks/useLocalStorageState'
+import { getEvents } from '../services/eventService'
+import { normalizeCalendarEvents } from '../utils/calendarUtils'
 import CalendarDatePicker from './CalendarDatePicker'
 import EventModal from './EventModal'
+import EventTooltip from './EventTooltip'
+import MonthCalendar from './MonthCalendar'
 import TimelineView from './TimelineView'
 
-const getExclusiveEndDate = (date) => {
-  if (!date) return undefined
-
-  const nextDay = new Date(`${date}T00:00:00`)
-  nextDay.setDate(nextDay.getDate() + 1)
-
-  return nextDay.toISOString().slice(0, 10)
-}
-
-const getReadableTextColor = (color = '') => {
-  let hex = color.replace('#', '')
-  if (hex.length === 3) hex = hex.split('').map((character) => character + character).join('')
-  if (!/^[0-9a-f]{6}$/i.test(hex)) return '#ffffff'
-
-  const red = Number.parseInt(hex.slice(0, 2), 16)
-  const green = Number.parseInt(hex.slice(2, 4), 16)
-  const blue = Number.parseInt(hex.slice(4, 6), 16)
-
-  return (red * 299 + green * 587 + blue * 114) / 1000 > 160
-    ? '#111827'
-    : '#ffffff'
-}
-
-const formatTooltipDate = (date) =>
-  new Intl.DateTimeFormat('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(`${date}T00:00:00`))
+const events = getEvents()
 
 function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [clearedHighlightRequestId, setClearedHighlightRequestId] = useState(null)
   const [visibleDate, setVisibleDate] = useState(() => new Date())
   const [eventTooltip, setEventTooltip] = useState(null)
-  const [viewMode, setViewMode] = useState(
-    () => localStorage.getItem('calendarViewMode') || 'month'
+  const [viewMode, setViewMode] = useLocalStorageState(
+    STORAGE_KEYS.calendarViewMode,
+    'month',
+    STRING_STORAGE_OPTIONS
   )
   const calendarRef = useRef(null)
   const calendarContainerRef = useRef(null)
@@ -74,10 +55,6 @@ function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
       window.clearTimeout(highlightTimer)
     }
   }, [focusedEvent])
-
-  useEffect(() => {
-    localStorage.setItem('calendarViewMode', viewMode)
-  }, [viewMode])
 
   const openEventModal = (event) => {
     if (event.id === highlightedEventId) {
@@ -120,36 +97,12 @@ function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
     navigateToMonth(today.getFullYear(), today.getMonth() + 1)
   }
 
-  // TODO(backend): 2학기에는 events 더미 데이터 대신 이벤트 조회 API 응답을 사용합니다.
-  const filteredEvents = events
-    .filter((event) =>
-      selectedGames.includes(event.game) &&
-      selectedTypes.includes(event.type)
-    )
-    .map((event) => {
-      const game = games.find((game) => game.name === event.game)
-
-      return {
-        ...event,
-        title: event.title,
-        end: getExclusiveEndDate(event.end),
-        allDay: true,
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-        extendedProps: {
-          game: event.game,
-          type: event.type,
-          description: event.description,
-          link: event.link,
-          location: event.location,
-          startDate: event.start,
-          endDate: event.end,
-          gameColor: game?.color,
-          gameIcon: game?.icon,
-          gameTextColor: getReadableTextColor(game?.color),
-        },
-      }
-    })
+  const filteredEvents = normalizeCalendarEvents({
+    events,
+    games,
+    selectedGames,
+    selectedTypes,
+  })
 
   return (
     <>
@@ -160,7 +113,7 @@ function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
             className={viewMode === 'month' ? 'is-active' : ''}
             onClick={() => setViewMode('month')}
           >
-            월간
+            캘린더
           </button>
           <button
             type="button"
@@ -181,61 +134,15 @@ function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
         />
 
         {viewMode === 'month' ? (
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin]}
-            initialView="dayGridMonth"
+          <MonthCalendar
+            calendarRef={calendarRef}
             initialDate={visibleDate}
-            headerToolbar={false}
-            locale="ko"
             events={filteredEvents}
-            eventClick={({ event }) => openEventModal(event)}
-            eventContent={({ event }) => {
-              const {
-                game,
-                type,
-                gameColor,
-                gameIcon,
-                gameTextColor,
-              } = event.extendedProps
-
-              return (
-                <div
-                  className="calendar-event-card"
-                  style={{
-                    '--event-color': gameColor,
-                    '--event-label-color': gameTextColor,
-                  }}
-                >
-                  <div className="calendar-event-game">
-                    <span className="calendar-event-icon">
-                      {gameIcon ? <img src={gameIcon} alt="" /> : game.slice(0, 1)}
-                    </span>
-                    <span>{game}</span>
-                  </div>
-                  <div className="calendar-event-body">
-                    <small>{type}</small>
-                    <strong>{event.title}</strong>
-                  </div>
-                </div>
-              )
-            }}
-            eventMouseEnter={({ event, jsEvent }) => showEventTooltip(event, jsEvent)}
-            eventMouseLeave={() => setEventTooltip(null)}
-            eventDidMount={({ event, el }) => {
-              el.setAttribute(
-                'aria-label',
-                `${event.extendedProps.game} ${event.extendedProps.type} ${event.title}`
-              )
-            }}
-            eventClassNames={({ event }) => [
-              'calendar-event',
-              event.id === highlightedEventId
-                ? 'calendar-event--highlighted'
-                : '',
-            ]}
-            datesSet={({ view }) => setVisibleDate(view.currentStart)}
-            height="auto"
+            highlightedEventId={highlightedEventId}
+            onEventClick={openEventModal}
+            onEventMouseEnter={showEventTooltip}
+            onEventMouseLeave={() => setEventTooltip(null)}
+            onDateChange={setVisibleDate}
           />
         ) : (
           <TimelineView
@@ -256,21 +163,7 @@ function EventCalendar({ selectedGames, selectedTypes, games, focusedEvent }) {
         onClose={() => setSelectedEvent(null)}
       />
 
-      {eventTooltip && (
-        <div
-          className="calendar-event-tooltip"
-          role="tooltip"
-          style={{ left: eventTooltip.left, top: eventTooltip.top }}
-        >
-          <strong>{eventTooltip.event.extendedProps.game}</strong>
-          <span>{eventTooltip.event.extendedProps.type} · {eventTooltip.event.title}</span>
-          <small>
-            {formatTooltipDate(eventTooltip.event.extendedProps.startDate)}
-            {' – '}
-            {formatTooltipDate(eventTooltip.event.extendedProps.endDate)}
-          </small>
-        </div>
-      )}
+      <EventTooltip tooltip={eventTooltip} />
     </>
   )
 }

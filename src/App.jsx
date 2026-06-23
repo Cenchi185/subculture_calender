@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { eventTypes } from './data/eventTypes'
 
 import EventCalendar from './components/EventCalendar'
@@ -7,76 +7,78 @@ import GameDrawer from './components/GameDrawer'
 import Legend from './components/Legend'
 import ActiveGameLegend from './components/ActiveGameLegend'
 import ThemeButton from './components/ThemeButton'
+import { STORAGE_KEYS } from './constants/storageKeys'
 import { gameColors } from './data/gameColors'
-import { events } from './data/events'
+import {
+  STRING_STORAGE_OPTIONS,
+  useLocalStorageState,
+} from './hooks/useLocalStorageState'
+import { getEvents } from './services/eventService'
 import './App.css'
 
+const events = getEvents()
+const gameStorageOptions = {
+  serialize: JSON.stringify,
+  deserialize: (savedValue) => {
+    const savedGames = JSON.parse(savedValue)
+    if (!Array.isArray(savedGames)) throw new TypeError('Invalid game settings')
+
+    const mergedGames = savedGames
+      .filter((savedGame) => gameColors.some((game) => game.name === savedGame.name))
+      .map((savedGame) => {
+        const defaultGame = gameColors.find((game) => game.name === savedGame.name)
+        return { ...defaultGame, ...savedGame, icon: savedGame.icon || defaultGame.icon }
+      })
+    const newGames = gameColors.filter(
+      (game) => !savedGames.some((savedGame) => savedGame.name === game.name)
+    )
+
+    return [...mergedGames, ...newGames]
+  },
+}
+
 function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
+  const [theme, setTheme] = useLocalStorageState(
+    STORAGE_KEYS.theme,
+    'dark',
+    STRING_STORAGE_OPTIONS
+  )
   const [focusedEvent, setFocusedEvent] = useState(null)
   const [isGameDrawerOpen, setIsGameDrawerOpen] = useState(false)
 
+  const [selectedGames, setSelectedGames] = useLocalStorageState(
+    STORAGE_KEYS.selectedGames,
+    () => gameColors.map((game) => game.name)
+  )
+  const [selectedTypes, setSelectedTypes] = useLocalStorageState(
+    STORAGE_KEYS.selectedTypes,
+    eventTypes
+  )
+  const [games, setGames] = useLocalStorageState(
+    STORAGE_KEYS.games,
+    gameColors,
+    gameStorageOptions
+  )
+
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme
-    localStorage.setItem('theme', theme)
   }, [theme])
-  const [selectedGames, setSelectedGames] = useState(() => {
-    const saved = localStorage.getItem('selectedGames')
-
-    if (saved) {
-      return JSON.parse(saved)
-    }
-
-    return gameColors.map((game) => game.name)
-  })
-
-  const [selectedTypes, setSelectedTypes] = useState(() => {
-    const saved = localStorage.getItem('selectedTypes')
-
-    if (saved) {
-      return JSON.parse(saved)
-    }
-
-    return eventTypes
-  })
-
-  useEffect(() => {
-    localStorage.setItem('selectedGames', JSON.stringify(selectedGames))
-  }, [selectedGames])
-
-  useEffect(() => {
-    localStorage.setItem('selectedTypes', JSON.stringify(selectedTypes))
-  }, [selectedTypes])
 
   const toggleGame = (gameName) => {
-    if (selectedGames.includes(gameName)) {
-      setSelectedGames(selectedGames.filter((name) => name !== gameName))
-    } else {
-      setSelectedGames([...selectedGames, gameName])
-    }
+    setSelectedGames((currentGames) =>
+      currentGames.includes(gameName)
+        ? currentGames.filter((name) => name !== gameName)
+        : [...currentGames, gameName]
+    )
   }
 
   const toggleType = (type) => {
-    if (selectedTypes.includes(type)) {
-      setSelectedTypes(selectedTypes.filter((item) => item !== type))
-    } else {
-      setSelectedTypes([...selectedTypes, type])
-    }
+    setSelectedTypes((currentTypes) =>
+      currentTypes.includes(type)
+        ? currentTypes.filter((item) => item !== type)
+        : [...currentTypes, type]
+    )
   }
-
-  const [games, setGames] = useState(() => {
-  const saved = localStorage.getItem('games')
-
-  if (saved) {
-    return JSON.parse(saved)
-  }
-
-  return gameColors
-  })
-
-  useEffect(() => {
-    localStorage.setItem('games', JSON.stringify(games))
-  }, [games])
 
   const changeGameColor = (gameName, color) => {
     setGames((currentGames) =>
@@ -86,6 +88,21 @@ function App() {
           : game
       )
     )
+  }
+
+  const reorderGame = (sourceGameName, targetGameName) => {
+    if (sourceGameName === targetGameName) return
+
+    setGames((currentGames) => {
+      const sourceIndex = currentGames.findIndex((game) => game.name === sourceGameName)
+      const targetIndex = currentGames.findIndex((game) => game.name === targetGameName)
+      if (sourceIndex < 0 || targetIndex < 0) return currentGames
+
+      const reorderedGames = [...currentGames]
+      const [movedGame] = reorderedGames.splice(sourceIndex, 1)
+      reorderedGames.splice(targetIndex, 0, movedGame)
+      return reorderedGames
+    })
   }
 
   const focusSearchedEvent = (event) => {
@@ -147,6 +164,7 @@ function App() {
         selectedGames={selectedGames}
         onToggleGame={toggleGame}
         onChangeGameColor={changeGameColor}
+        onReorderGame={reorderGame}
         onClose={() => setIsGameDrawerOpen(false)}
       />
 

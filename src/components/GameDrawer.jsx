@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import { RECOMMENDED_GAME_COLORS } from '../constants/recommendedColors'
 import ToggleSwitch from './ToggleSwitch'
 
-const RECOMMENDED_COLORS = [
-  '#4da3ff', '#7c6cf2', '#a855f7', '#ec4899',
-  '#ff5c8a', '#f97316', '#eab308', '#22c55e',
-  '#14b8a6', '#06b6d4', '#64748b', '#ef4444',
-]
-
-function GameDrawer({ isOpen, games, selectedGames, onToggleGame, onChangeGameColor, onClose }) {
+function GameDrawer({
+  isOpen,
+  games,
+  selectedGames,
+  onToggleGame,
+  onChangeGameColor,
+  onReorderGame,
+  onClose,
+}) {
   const [paletteGame, setPaletteGame] = useState(null)
+  const [draggingGame, setDraggingGame] = useState(null)
+  const [dragOverGame, setDragOverGame] = useState(null)
   const closeButtonRef = useRef(null)
 
   useEffect(() => {
@@ -38,6 +43,23 @@ function GameDrawer({ isOpen, games, selectedGames, onToggleGame, onChangeGameCo
   const selectColor = (gameName, color) => {
     onChangeGameColor(gameName, color)
     setPaletteGame(null)
+  }
+
+  const finishReorder = () => {
+    setDraggingGame(null)
+    setDragOverGame(null)
+  }
+
+  const dropGame = (targetGameName) => {
+    if (draggingGame) onReorderGame(draggingGame, targetGameName)
+    finishReorder()
+  }
+
+  const moveGameWithKeyboard = (gameName, direction) => {
+    const currentIndex = games.findIndex((game) => game.name === gameName)
+    const targetIndex = currentIndex + direction
+    if (targetIndex < 0 || targetIndex >= games.length) return
+    onReorderGame(gameName, games[targetIndex].name)
   }
 
   return (
@@ -72,7 +94,7 @@ function GameDrawer({ isOpen, games, selectedGames, onToggleGame, onChangeGameCo
         </header>
 
         <p className="game-drawer-description">
-          캘린더에 표시할 게임과 범례 색상을 설정하세요.
+          캘린더에 표시할 게임과 범례 색상을 설정하세요. 손잡이를 드래그하면 순서를 바꿀 수 있습니다.
         </p>
 
         <div className="game-drawer-list">
@@ -81,8 +103,47 @@ function GameDrawer({ isOpen, games, selectedGames, onToggleGame, onChangeGameCo
             const isPaletteOpen = paletteGame === game.name
 
             return (
-              <article className="game-card" key={game.name}>
+              <article
+                className={`game-card ${draggingGame === game.name ? 'is-dragging' : ''} ${dragOverGame === game.name && draggingGame !== game.name ? 'is-drag-over' : ''}`}
+                key={game.name}
+                onDragOver={(dragEvent) => {
+                  dragEvent.preventDefault()
+                  dragEvent.dataTransfer.dropEffect = 'move'
+                  setDragOverGame(game.name)
+                }}
+                onDrop={(dragEvent) => {
+                  dragEvent.preventDefault()
+                  dropGame(game.name)
+                }}
+              >
                 <div className="game-card-main">
+                  <span
+                    className="game-drag-handle"
+                    role="button"
+                    tabIndex={0}
+                    draggable="true"
+                    aria-label={`${game.name} 순서 변경. 위아래 방향키로 이동할 수 있습니다.`}
+                    title="드래그하여 순서 변경"
+                    onDragStart={(dragEvent) => {
+                      setDraggingGame(game.name)
+                      dragEvent.dataTransfer.effectAllowed = 'move'
+                      dragEvent.dataTransfer.setData('text/plain', game.name)
+                    }}
+                    onDragEnd={finishReorder}
+                    onKeyDown={(keyEvent) => {
+                      if (keyEvent.key === 'ArrowUp') {
+                        keyEvent.preventDefault()
+                        moveGameWithKeyboard(game.name, -1)
+                      }
+                      if (keyEvent.key === 'ArrowDown') {
+                        keyEvent.preventDefault()
+                        moveGameWithKeyboard(game.name, 1)
+                      }
+                    }}
+                  >
+                    ⠿
+                  </span>
+
                   <div className="game-icon" style={{ '--game-color': game.color }}>
                     {game.icon ? (
                       <img src={game.icon} alt="" />
@@ -116,7 +177,7 @@ function GameDrawer({ isOpen, games, selectedGames, onToggleGame, onChangeGameCo
                   <div className="game-color-panel">
                     <span className="game-color-panel-title">추천 색상</span>
                     <div className="recommended-colors">
-                      {RECOMMENDED_COLORS.map((color) => (
+                      {RECOMMENDED_GAME_COLORS.map((color) => (
                         <button
                           type="button"
                           key={color}
